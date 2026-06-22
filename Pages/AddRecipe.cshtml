@@ -6,26 +6,60 @@
 
 <h1>Add a Recipe</h1>
 
+@if (!ModelState.IsValid)
+{
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+        @foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <li>@error.ErrorMessage</li>
+        }
+        </ul>
+    </div>
+}
+
 <form method="post" enctype="multipart/form-data">
 
     <div class="mb-3">
         <label class="form-label">Recipe Name</label>
-        <input type="text" name="Name" class="form-control" required />
+        <input type="text" asp-for="Name" class="form-control" />
     </div>
 
     <div class="mb-3">
         <label class="form-label">Photo</label>
-        <input type="file" name="Photo" class="form-control" accept="image/*" />
+        <input type="file" name="Photo" class="form-control mb-2" accept="image/*" />
+
+        <div class="d-flex gap-2 mb-2">
+            <input type="text" asp-for="PhotoSearchTerm" class="form-control" placeholder="Or search for a photo online..." />
+            <button type="submit" asp-page-handler="SearchPhotos" class="btn btn-outline-primary">Search</button>
+        </div>
+
+        @if (Model.PhotoResults.Any())
+        {
+            <div class="row">
+            @foreach (var photo in Model.PhotoResults)
+            {
+                <div class="col-3 mb-2">
+                    <img src="@photo.ThumbnailUrl" class="img-fluid border rounded"
+                    style="cursor: pointer; height: 100px; object-fit: cover; width: 100%; border: 2px solid #ccc; transition: all 0.15s ease;"
+                     onclick="selectPhoto('@photo.FullUrl', this)" />
+                </div>
+            }
+            </div>
+            <small class="text-muted">Photos provided by <a href="https://www.pexels.com" target="_blank">Pexels</a></small>
+        }
+
+        <input type="hidden" asp-for="SelectedPhotoUrl" id="selectedPhotoUrl" />
     </div>
 
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Servings</label>
-            <input type="number" name="Servings" class="form-control" min="1" />
+            <input type="number" asp-for="Servings" class="form-control" min="1" />
         </div>
         <div class="col">
             <label class="form-label">Prep Time (minutes)</label>
-            <input type="number" name="PrepMinutes" class="form-control" min="0" />
+            <input type="number" asp-for="PrepMinutes" class="form-control" min="0" />
         </div>
     </div>
 
@@ -59,7 +93,7 @@
 
     <hr />
 
-    <button type="submit" class="btn btn-success">Save Recipe</button>
+    <button type="submit" asp-page-handler="Save" class="btn btn-success">Save Recipe</button>
     <a asp-page="/Recipes" class="btn btn-outline-secondary">Cancel</a>
 </form>
 
@@ -90,6 +124,22 @@
             row.className = "mb-2 step-row";
             row.innerHTML = `<input type="text" name="Steps" class="form-control" placeholder="Step ${count}" />`;
             list.appendChild(row);
+        }
+
+        function selectPhoto(url, imgElement) {
+            document.getElementById("selectedPhotoUrl").value = url;
+
+            // Reset all thumbnails back to normal
+            document.querySelectorAll(".row img").forEach(img => {
+                img.style.border = "2px solid #ccc";
+                img.style.transform = "scale(1)";
+                img.style.boxShadow = "none";
+            });
+
+            // Strongly highlight the selected one
+            imgElement.style.border = "4px solid #28a745";
+            imgElement.style.transform = "scale(1.05)";
+            imgElement.style.boxShadow = "0 0 0 4px rgba(40, 167, 69, 0.3)";
         }
     </script>
 }
