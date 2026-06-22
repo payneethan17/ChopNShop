@@ -1,0 +1,95 @@
+@page
+@model ChopNShop.Pages.AddRecipeModel
+@{
+    ViewData["Title"] = "Add Recipe";
+}
+
+<h1>Add a Recipe</h1>
+
+<form method="post" enctype="multipart/form-data">
+
+    <div class="mb-3">
+        <label class="form-label">Recipe Name</label>
+        <input type="text" name="Name" class="form-control" required />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Photo</label>
+        <input type="file" name="Photo" class="form-control" accept="image/*" />
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label">Servings</label>
+            <input type="number" name="Servings" class="form-control" min="1" />
+        </div>
+        <div class="col">
+            <label class="form-label">Prep Time (minutes)</label>
+            <input type="number" name="PrepMinutes" class="form-control" min="0" />
+        </div>
+    </div>
+
+    <hr />
+
+    <h4>Ingredients</h4>
+    <div id="ingredient-list">
+        <div class="row mb-2 ingredient-row">
+            <div class="col-2">
+                <input type="number" name="IngredientQuantities" class="form-control" placeholder="Qty" />
+            </div>
+            <div class="col-3">
+                <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
+            </div>
+            <div class="col-5">
+                <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+            </div>
+        </div>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addIngredientRow()">+ Add Ingredient</button>
+
+    <hr />
+
+    <h4>Steps</h4>
+    <div id="step-list">
+        <div class="mb-2 step-row">
+            <input type="text" name="Steps" class="form-control" placeholder="Step 1" />
+        </div>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addStepRow()">+ Add Step</button>
+
+    <hr />
+
+    <button type="submit" class="btn btn-success">Save Recipe</button>
+    <a asp-page="/Recipes" class="btn btn-outline-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <script>
+        function addIngredientRow() {
+            const list = document.getElementById("ingredient-list");
+            const row = document.createElement("div");
+            row.className = "row mb-2 ingredient-row";
+            row.innerHTML = `
+                <div class="col-2">
+                    <input type="number" name="IngredientQuantities" class="form-control" placeholder="Qty" />
+                </div>
+                <div class="col-3">
+                    <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
+                </div>
+                <div class="col-5">
+                    <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+                </div>
+            `;
+            list.appendChild(row);
+        }
+
+        function addStepRow() {
+            const list = document.getElementById("step-list");
+            const count = list.querySelectorAll(".step-row").length + 1;
+            const row = document.createElement("div");
+            row.className = "mb-2 step-row";
+            row.innerHTML = `<input type="text" name="Steps" class="form-control" placeholder="Step ${count}" />`;
+            list.appendChild(row);
+        }
+    </script>
+}

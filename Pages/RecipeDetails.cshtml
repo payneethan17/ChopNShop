@@ -1,0 +1,37 @@
+@page "{id:int}"
+@model ChopNShop.Pages.RecipeDetailsModel
+@{
+    ViewData["Title"] = Model.Recipe?.Name ?? "Recipe";
+}
+
+@if (Model.Recipe != null)
+{
+    <div class="mb-4">
+        <a asp-page="/Recipes" class="btn btn-outline-secondary btn-sm">&larr; Back to Recipes</a>
+    </div>
+
+    <h1>@Model.Recipe.Name</h1>
+
+    <img src="@Model.Recipe.ImagePath" class="img-fluid mb-3" style="max-height: 400px; width: 100%; object-fit: cover;" alt="@Model.Recipe.Name" />
+
+    <div class="d-flex gap-4 mb-4 text-muted">
+        <span><strong>Servings:</strong> @Model.Recipe.Servings</span>
+        <span><strong>Prep Time:</strong> @Model.Recipe.PrepTime.Minutes minutes</span>
+    </div>
+
+    <h3>Ingredients</h3>
+    <ul class="list-group mb-4">
+    @foreach (var ingredient in Model.Recipe.Ingredients)
+    {
+        <li class="list-group-item">@ingredient.Quantity @ingredient.Unit @ingredient.Name</li>
+    }
+    </ul>
+
+    <h3>Steps</h3>
+    <ol class="list-group list-group-numbered">
+    @foreach (var step in Model.Recipe.Steps)
+    {
+        <li class="list-group-item">@step</li>
+    }
+    </ol>
+}
