@@ -6,8 +6,12 @@
 
 @if (Model.Recipe != null)
 {
-    <div class="mb-4">
+    <div class="mb-4 d-flex justify-content-between">
         <a asp-page="/Recipes" class="btn btn-outline-secondary btn-sm">&larr; Back to Recipes</a>
+        <div>
+            <a asp-page="/EditRecipe" asp-route-id="@Model.Recipe.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">Delete</button>
+        </div>
     </div>
 
     <h1>@Model.Recipe.Name</h1>
@@ -34,4 +38,32 @@
         <li class="list-group-item">@step</li>
     }
     </ol>
+
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Recipe?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete "@Model.Recipe.Name"? This can't be undone.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Recipe.Id">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+@section Scripts {
+    <script>
+        document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function () {
+            document.body.classList.remove('modal-open');
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        });
+    </script>
 }

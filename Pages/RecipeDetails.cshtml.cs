@@ -20,4 +20,10 @@ public class RecipeDetailsModel : PageModel
 
         return Page();
     }
+
+    public IActionResult OnPostDelete(int id)
+    {
+        RecipeData.DeleteRecipe(id);
+        return RedirectToPage("/Recipes");
+    }
 }

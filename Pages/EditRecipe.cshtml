@@ -1,0 +1,208 @@
+@page "{id:int}"
+@model ChopNShop.Pages.EditRecipeModel
+@{
+    ViewData["Title"] = "Edit Recipe";
+}
+
+<h1>Edit Recipe</h1>
+
+@if (!ModelState.IsValid)
+{
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+        @foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <li>@error.ErrorMessage</li>
+        }
+        </ul>
+    </div>
+}
+
+<form method="post" enctype="multipart/form-data">
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="ExistingImagePath" />
+
+    <div class="mb-3">
+        <label class="form-label">Recipe Name</label>
+        <input type="text" asp-for="Name" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Photo</label>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ExistingImagePath))
+        {
+            <div class="mb-2">
+                <p class="text-muted mb-1">Current photo:</p>
+                <img src="@Model.ExistingImagePath" style="height: 120px; object-fit: cover;" class="rounded border" />
+            </div>
+        }
+
+        <input type="file" name="Photo" class="form-control mb-2" accept="image/*" />
+        <small class="text-muted">Leave blank to keep the current photo.</small>
+
+        <div class="d-flex gap-2 mb-2 mt-2">
+            <input type="text" asp-for="PhotoSearchTerm" class="form-control" placeholder="Or search for a new photo online..." />
+            <button type="submit" asp-page-handler="SearchPhotos" class="btn btn-outline-primary">Search</button>
+        </div>
+
+        @if (Model.PhotoResults.Any())
+        {
+            <div class="row">
+            @foreach (var photo in Model.PhotoResults)
+            {
+                <div class="col-3 mb-2">
+                    <img src="@photo.ThumbnailUrl" class="img-fluid border rounded"
+                         style="cursor: pointer; height: 100px; object-fit: cover; width: 100%; border: 2px solid #ccc; transition: all 0.15s ease;"
+                         onclick="selectPhoto('@photo.FullUrl', this)" />
+                </div>
+            }
+            </div>
+            <small class="text-muted">Photos provided by <a href="https://www.pexels.com" target="_blank">Pexels</a></small>
+        }
+
+        <input type="hidden" asp-for="SelectedPhotoUrl" id="selectedPhotoUrl" />
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label">Servings</label>
+            <input type="number" asp-for="Servings" class="form-control" min="1" />
+        </div>
+        <div class="col">
+            <label class="form-label">Prep Time (minutes)</label>
+            <input type="number" asp-for="PrepMinutes" class="form-control" min="0" />
+        </div>
+    </div>
+
+    <hr />
+
+    <h4>Ingredients</h4>
+    <div id="ingredient-list">
+    @for (int i = 0; i < Model.IngredientNames.Count; i++)
+    {
+        <div class="row mb-2 ingredient-row align-items-center">
+            <div class="col-2">
+                <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" value="@Model.IngredientQuantities.ElementAtOrDefault(i)" />
+                <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
+            </div>
+            <div class="col-3">
+                <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" value="@Model.IngredientUnits.ElementAtOrDefault(i)" />
+            </div>
+            <div class="col-5">
+                <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" value="@Model.IngredientNames.ElementAtOrDefault(i)" />
+            </div>
+            <div class="col-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
+            </div>
+        </div>
+    }
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addIngredientRow()">+ Add Ingredient</button>
+
+    <hr />
+
+    <h4>Steps</h4>
+    <div id="step-list">
+    @for (int i = 0; i < Model.Steps.Count; i++)
+    {
+        <div class="mb-2 step-row d-flex gap-2 align-items-center">
+            <input type="text" name="Steps" class="form-control" placeholder="Step @(i + 1)" value="@Model.Steps[i]" />
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
+        </div>
+    }
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addStepRow()">+ Add Step</button>
+
+    <hr />
+
+    <button type="submit" asp-page-handler="Save" class="btn btn-success">Save Changes</button>
+    <a asp-page="/RecipeDetails" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <script>
+        function validateQuantity(input) {
+            const pattern = /^\d*(\/\d+)?$/;
+            const errorEl = input.parentElement.querySelector(".qty-error");
+            const isValid = pattern.test(input.value.trim());
+
+            if (!isValid) {
+                input.classList.add("is-invalid");
+                errorEl.style.display = "block";
+            } else {
+                input.classList.remove("is-invalid");
+                errorEl.style.display = "none";
+            }
+            return isValid;
+        }
+
+        function addIngredientRow() {
+            const allQtyInputs = document.querySelectorAll(".qty-input");
+            let allValid = true;
+            allQtyInputs.forEach(input => {
+                if (!validateQuantity(input)) {
+                    allValid = false;
+                }
+            });
+
+            if (!allValid) {
+                return;
+            }
+
+            const list = document.getElementById("ingredient-list");
+            const row = document.createElement("div");
+            row.className = "row mb-2 ingredient-row align-items-center";
+            row.innerHTML = `
+                <div class="col-2">
+                    <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
+                    <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
+                </div>
+                <div class="col-3">
+                    <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
+                </div>
+                <div class="col-5">
+                    <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+                </div>
+                <div class="col-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
+                </div>
+            `;
+            list.appendChild(row);
+        }
+
+        function addStepRow() {
+            const list = document.getElementById("step-list");
+            const count = list.querySelectorAll(".step-row").length + 1;
+            const row = document.createElement("div");
+            row.className = "mb-2 step-row d-flex gap-2 align-items-center";
+            row.innerHTML = `
+                <input type="text" name="Steps" class="form-control" placeholder="Step ${count}" />
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
+            `;
+            list.appendChild(row);
+        }
+
+        function removeRow(button, rowClass) {
+            const row = button.closest("." + rowClass);
+            const list = row.parentElement;
+            if (list.querySelectorAll("." + rowClass).length > 1) {
+                row.remove();
+            } else {
+                row.querySelectorAll("input").forEach(input => input.value = "");
+            }
+        }
+
+        function selectPhoto(url, imgElement) {
+            document.getElementById("selectedPhotoUrl").value = url;
+            document.querySelectorAll(".row img").forEach(img => {
+                img.style.border = "2px solid #ccc";
+                img.style.transform = "scale(1)";
+                img.style.boxShadow = "none";
+            });
+            imgElement.style.border = "4px solid #28a745";
+            imgElement.style.transform = "scale(1.05)";
+            imgElement.style.boxShadow = "0 0 0 4px rgba(40, 167, 69, 0.3)";
+        }
+    </script>
+}
