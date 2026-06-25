@@ -41,8 +41,8 @@
             {
                 <div class="col-3 mb-2">
                     <img src="@photo.ThumbnailUrl" class="img-fluid border rounded"
-                    style="cursor: pointer; height: 100px; object-fit: cover; width: 100%; border: 2px solid #ccc; transition: all 0.15s ease;"
-                     onclick="selectPhoto('@photo.FullUrl', this)" />
+                         style="cursor: pointer; height: 100px; object-fit: cover; width: 100%; border: 2px solid #ccc; transition: all 0.15s ease;"
+                         onclick="selectPhoto('@photo.FullUrl', this)" />
                 </div>
             }
             </div>
@@ -67,15 +67,19 @@
 
     <h4>Ingredients</h4>
     <div id="ingredient-list">
-        <div class="row mb-2 ingredient-row">
+        <div class="row mb-2 ingredient-row align-items-center">
             <div class="col-2">
-                <input type="number" name="IngredientQuantities" class="form-control" placeholder="Qty" />
+                <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
+                <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
             </div>
             <div class="col-3">
                 <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
             </div>
             <div class="col-5">
                 <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+            </div>
+            <div class="col-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
             </div>
         </div>
     </div>
@@ -85,8 +89,9 @@
 
     <h4>Steps</h4>
     <div id="step-list">
-        <div class="mb-2 step-row">
+        <div class="mb-2 step-row d-flex gap-2 align-items-center">
             <input type="text" name="Steps" class="form-control" placeholder="Step 1" />
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
         </div>
     </div>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addStepRow()">+ Add Step</button>
@@ -99,19 +104,50 @@
 
 @section Scripts {
     <script>
+        function validateQuantity(input) {
+            const pattern = /^\d*(\/\d+)?$/;
+            const errorEl = input.parentElement.querySelector(".qty-error");
+            const isValid = pattern.test(input.value.trim());
+
+            if (!isValid) {
+                input.classList.add("is-invalid");
+                errorEl.style.display = "block";
+            } else {
+                input.classList.remove("is-invalid");
+                errorEl.style.display = "none";
+            }
+            return isValid;
+        }
+
         function addIngredientRow() {
+            const allQtyInputs = document.querySelectorAll(".qty-input");
+            let allValid = true;
+            allQtyInputs.forEach(input => {
+                if (!validateQuantity(input)) {
+                    allValid = false;
+                }
+            });
+
+            if (!allValid) {
+                return;
+            }
+
             const list = document.getElementById("ingredient-list");
             const row = document.createElement("div");
-            row.className = "row mb-2 ingredient-row";
+            row.className = "row mb-2 ingredient-row align-items-center";
             row.innerHTML = `
                 <div class="col-2">
-                    <input type="number" name="IngredientQuantities" class="form-control" placeholder="Qty" />
+                    <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
+                    <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
                 </div>
                 <div class="col-3">
                     <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
                 </div>
                 <div class="col-5">
                     <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+                </div>
+                <div class="col-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
                 </div>
             `;
             list.appendChild(row);
@@ -121,22 +157,31 @@
             const list = document.getElementById("step-list");
             const count = list.querySelectorAll(".step-row").length + 1;
             const row = document.createElement("div");
-            row.className = "mb-2 step-row";
-            row.innerHTML = `<input type="text" name="Steps" class="form-control" placeholder="Step ${count}" />`;
+            row.className = "mb-2 step-row d-flex gap-2 align-items-center";
+            row.innerHTML = `
+                <input type="text" name="Steps" class="form-control" placeholder="Step ${count}" />
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
+            `;
             list.appendChild(row);
+        }
+
+        function removeRow(button, rowClass) {
+            const row = button.closest("." + rowClass);
+            const list = row.parentElement;
+            if (list.querySelectorAll("." + rowClass).length > 1) {
+                row.remove();
+            } else {
+                row.querySelectorAll("input").forEach(input => input.value = "");
+            }
         }
 
         function selectPhoto(url, imgElement) {
             document.getElementById("selectedPhotoUrl").value = url;
-
-            // Reset all thumbnails back to normal
             document.querySelectorAll(".row img").forEach(img => {
                 img.style.border = "2px solid #ccc";
                 img.style.transform = "scale(1)";
                 img.style.boxShadow = "none";
             });
-
-            // Strongly highlight the selected one
             imgElement.style.border = "4px solid #28a745";
             imgElement.style.transform = "scale(1.05)";
             imgElement.style.boxShadow = "0 0 0 4px rgba(40, 167, 69, 0.3)";
