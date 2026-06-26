@@ -1,11 +1,20 @@
+@* The {id:int} route segment means this page's URL must include a numeric
+   id, e.g. /EditRecipe/3 — and that number gets passed straight into
+   OnGet(int id) in the code-behind. *@
 @page "{id:int}"
 @model ChopNShop.Pages.EditRecipeModel
 @{
+    // Sets the browser tab title for this page.
     ViewData["Title"] = "Edit Recipe";
 }
 
 <h1>Edit Recipe</h1>
 
+@* ===================================================================
+   ERROR SUMMARY BOX — identical pattern to AddRecipe.cshtml.
+   Shows any validation errors added via ModelState.AddModelError(...)
+   in the code-behind, all in one place at the top of the form.
+   =================================================================== *@
 @if (!ModelState.IsValid)
 {
     <div class="alert alert-danger">
@@ -18,18 +27,31 @@
     </div>
 }
 
+@* enctype="multipart/form-data" is required because this form includes
+   a file upload input (for replacing the photo). *@
 <form method="post" enctype="multipart/form-data">
+    @* These two hidden fields don't show up visually on the page at all,
+       but they ride along silently with the form submission so the
+       Save handler knows:
+         1) WHICH recipe is being edited (Id)
+         2) what photo is CURRENTLY saved, in case the user doesn't
+            upload a new one or pick a new Pexels photo (ExistingImagePath) *@
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="ExistingImagePath" />
 
     <div class="mb-3">
         <label class="form-label">Recipe Name</label>
+        @* asp-for="Name" both names this input correctly for binding AND
+           pre-fills it with the recipe's current name, since OnGet() in
+           the code-behind already loaded that value into Model.Name. *@
         <input type="text" asp-for="Name" class="form-control" />
     </div>
 
     <div class="mb-3">
         <label class="form-label">Photo</label>
 
+        @* Only show the "current photo" preview if this recipe actually
+           has one saved already. *@
         @if (!string.IsNullOrWhiteSpace(Model.ExistingImagePath))
         {
             <div class="mb-2">
@@ -38,14 +60,22 @@
             </div>
         }
 
+        @* A fresh file upload box — intentionally starts empty every time
+           (browsers won't let a file input be pre-filled for security
+           reasons), which is why the helper text below clarifies that
+           leaving it blank is totally fine and expected. *@
         <input type="file" name="Photo" class="form-control mb-2" accept="image/*" />
         <small class="text-muted">Leave blank to keep the current photo.</small>
 
         <div class="d-flex gap-2 mb-2 mt-2">
             <input type="text" asp-for="PhotoSearchTerm" class="form-control" placeholder="Or search for a new photo online..." />
+            @* Routes specifically to OnPostSearchPhotosAsync() in the code-behind,
+               same pattern as on the Add Recipe page. *@
             <button type="submit" asp-page-handler="SearchPhotos" class="btn btn-outline-primary">Search</button>
         </div>
 
+        @* Shows search results the same way as Add Recipe — only appears
+           after a search has actually run and returned something. *@
         @if (Model.PhotoResults.Any())
         {
             <div class="row">
@@ -61,12 +91,17 @@
             <small class="text-muted">Photos provided by <a href="https://www.pexels.com" target="_blank">Pexels</a></small>
         }
 
+        @* Filled in by JavaScript when a search-result thumbnail is clicked.
+           If the user never clicks one, this just stays empty, and the
+           Save handler falls back to ExistingImagePath or a new upload instead. *@
         <input type="hidden" asp-for="SelectedPhotoUrl" id="selectedPhotoUrl" />
     </div>
 
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Servings</label>
+            @* Pre-filled automatically via asp-for, since Model.Servings was
+               already set from the existing recipe's data in OnGet(). *@
             <input type="number" asp-for="Servings" class="form-control" min="1" />
         </div>
         <div class="col">
@@ -79,10 +114,21 @@
 
     <h4>Ingredients</h4>
     <div id="ingredient-list">
+    @* KEY DIFFERENCE FROM AddRecipe.cshtml:
+       Add Recipe always starts with exactly ONE blank ingredient row.
+       Edit Recipe instead needs to render ONE ROW PER EXISTING INGREDIENT,
+       each pre-filled with that ingredient's saved values. A @for loop
+       (rather than @foreach) is used here specifically so we have access
+       to the index "i", which is needed to pull the matching value out of
+       all three separate lists (Names, Quantities, Units) at the same position. *@
     @for (int i = 0; i < Model.IngredientNames.Count; i++)
     {
         <div class="row mb-2 ingredient-row align-items-center">
             <div class="col-2">
+                @* ElementAtOrDefault(i) safely grabs the value at this index
+                   without throwing an error if, for some reason, this list
+                   happens to be shorter than IngredientNames — it just
+                   returns null/empty instead of crashing. *@
                 <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" value="@Model.IngredientQuantities.ElementAtOrDefault(i)" />
                 <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
             </div>
@@ -93,6 +139,9 @@
                 <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" value="@Model.IngredientNames.ElementAtOrDefault(i)" />
             </div>
             <div class="col-2">
+                @* Same removeRow() JS function as Add Recipe — works
+                   identically whether the row was rendered by the server
+                   (like this one) or added later by JavaScript. *@
                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
             </div>
         </div>
@@ -104,9 +153,14 @@
 
     <h4>Steps</h4>
     <div id="step-list">
+    @* Same idea as the ingredients loop above — one row per EXISTING step,
+       pre-filled with its saved text, instead of starting blank. *@
     @for (int i = 0; i < Model.Steps.Count; i++)
     {
         <div class="mb-2 step-row d-flex gap-2 align-items-center">
+            @* Model.Steps[i] is used directly here (not ElementAtOrDefault)
+               because this loop's range is already based on Model.Steps.Count,
+               so index i is always guaranteed to be valid for this specific list. *@
             <input type="text" name="Steps" class="form-control" placeholder="Step @(i + 1)" value="@Model.Steps[i]" />
             <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
         </div>
@@ -116,12 +170,23 @@
 
     <hr />
 
+    @* Explicitly named "Save" handler, same reasoning as Add Recipe —
+       avoids any ambiguity with the "SearchPhotos" handler sharing this form. *@
     <button type="submit" asp-page-handler="Save" class="btn btn-success">Save Changes</button>
+    @* Cancel goes back to this specific recipe's details page (not the
+       whole grid), since that's the most useful place to return to after
+       deciding not to make changes. *@
     <a asp-page="/RecipeDetails" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
 </form>
 
+@* This entire script block is IDENTICAL to the one in AddRecipe.cshtml.
+   It's duplicated here because each Razor Page's scripts are self-contained
+   to that page — there's no automatic sharing between AddRecipe and
+   EditRecipe's script sections without extra setup (like a shared .js file). *@
 @section Scripts {
     <script>
+        // Checks one quantity box: blank, a whole number, or a fraction
+        // like "1/2" are all valid; anything else gets flagged.
         function validateQuantity(input) {
             const pattern = /^\d*(\/\d+)?$/;
             const errorEl = input.parentElement.querySelector(".qty-error");
@@ -137,6 +202,8 @@
             return isValid;
         }
 
+        // Adds a brand new, blank ingredient row — but only after confirming
+        // every EXISTING quantity box on the page is currently valid.
         function addIngredientRow() {
             const allQtyInputs = document.querySelectorAll(".qty-input");
             let allValid = true;
@@ -171,8 +238,11 @@
             list.appendChild(row);
         }
 
+        // Adds a brand new, blank step row at the bottom of the list.
         function addStepRow() {
             const list = document.getElementById("step-list");
+            // Counts existing rows so the new one's placeholder number
+            // continues correctly (e.g. "Step 4" if 3 already exist).
             const count = list.querySelectorAll(".step-row").length + 1;
             const row = document.createElement("div");
             row.className = "mb-2 step-row d-flex gap-2 align-items-center";
@@ -183,6 +253,10 @@
             list.appendChild(row);
         }
 
+        // Removes a single row (ingredient or step) when its "✕ Remove"
+        // button is clicked — unless it's the very last row of its kind,
+        // in which case it just clears the inputs instead of deleting the
+        // row entirely, so the section never looks completely empty/broken.
         function removeRow(button, rowClass) {
             const row = button.closest("." + rowClass);
             const list = row.parentElement;
@@ -193,6 +267,9 @@
             }
         }
 
+        // Runs when a Pexels search-result thumbnail is clicked — stores
+        // that photo's URL into the hidden SelectedPhotoUrl field and
+        // visually highlights the chosen thumbnail.
         function selectPhoto(url, imgElement) {
             document.getElementById("selectedPhotoUrl").value = url;
             document.querySelectorAll(".row img").forEach(img => {

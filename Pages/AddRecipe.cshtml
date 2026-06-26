@@ -1,15 +1,26 @@
 @page
 @model ChopNShop.Pages.AddRecipeModel
 @{
+    // Sets the browser tab title for this page.
     ViewData["Title"] = "Add Recipe";
 }
 
 <h1>Add a Recipe</h1>
 
+@* ===================================================================
+   ERROR SUMMARY BOX
+   This block only shows up if something went wrong during a form submit
+   (e.g. missing name, bad ingredient quantity, bad photo file type).
+   ModelState is automatically filled in by ASP.NET whenever a
+   ModelState.AddModelError(...) call happens in the code-behind.
+   =================================================================== *@
 @if (!ModelState.IsValid)
 {
     <div class="alert alert-danger">
         <ul class="mb-0">
+        @* ModelState.Values holds one entry per field that had an error.
+           SelectMany flattens all of those into one single list of error
+           messages, so we can just loop through them and print each one. *@
         @foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
         {
             <li>@error.ErrorMessage</li>
@@ -18,37 +29,59 @@
     </div>
 }
 
+@* The main form. enctype="multipart/form-data" is REQUIRED whenever a form
+   includes a file upload input (<input type="file">) — without it, the
+   uploaded photo would never actually reach the server. *@
 <form method="post" enctype="multipart/form-data">
 
     <div class="mb-3">
         <label class="form-label">Recipe Name</label>
+        @* asp-for="Name" links this box directly to the Name property in
+           AddRecipeModel. It auto-generates name="Name" and also
+           auto-fills the box with whatever value Name currently holds
+           (useful if the page reloads after a validation error). *@
         <input type="text" asp-for="Name" class="form-control" />
     </div>
 
     <div class="mb-3">
         <label class="form-label">Photo</label>
+        @* Plain file input — NOT using asp-for here because file inputs
+           can't be "pre-filled" by the browser for security reasons,
+           so there's no benefit to binding it that way. *@
         <input type="file" name="Photo" class="form-control mb-2" accept="image/*" />
 
         <div class="d-flex gap-2 mb-2">
             <input type="text" asp-for="PhotoSearchTerm" class="form-control" placeholder="Or search for a photo online..." />
+            @* asp-page-handler="SearchPhotos" makes THIS button specifically call
+               OnPostSearchPhotosAsync() in the code-behind, instead of the
+               default OnPost/OnPostAsync handler. This is what lets a page
+               have more than one kind of "submit" action. *@
             <button type="submit" asp-page-handler="SearchPhotos" class="btn btn-outline-primary">Search</button>
         </div>
 
+        @* Only show the results grid if a search has actually returned photos. *@
         @if (Model.PhotoResults.Any())
         {
             <div class="row">
             @foreach (var photo in Model.PhotoResults)
             {
                 <div class="col-3 mb-2">
+                    @* Clicking a thumbnail runs the selectPhoto() JS function below,
+                       passing in this specific photo's full-size URL and a reference
+                       to the image element itself (so the script can highlight it). *@
                     <img src="@photo.ThumbnailUrl" class="img-fluid border rounded"
                          style="cursor: pointer; height: 100px; object-fit: cover; width: 100%; border: 2px solid #ccc; transition: all 0.15s ease;"
                          onclick="selectPhoto('@photo.FullUrl', this)" />
                 </div>
             }
             </div>
+            @* Required credit line per Pexels' usage terms whenever their photos are shown. *@
             <small class="text-muted">Photos provided by <a href="https://www.pexels.com" target="_blank">Pexels</a></small>
         }
 
+        @* This hidden field is invisible to the user but travels with the form.
+           JavaScript (selectPhoto) fills in its value when a thumbnail is clicked,
+           and that value is what the server actually reads as "the chosen photo". *@
         <input type="hidden" asp-for="SelectedPhotoUrl" id="selectedPhotoUrl" />
     </div>
 
@@ -66,10 +99,22 @@
     <hr />
 
     <h4>Ingredients</h4>
+    @* This wrapping div has an id so JavaScript can find it later and
+       append new ingredient rows to it dynamically. *@
     <div id="ingredient-list">
+        @* This is the ONE starting ingredient row that's always present.
+           Extra rows beyond this one are created entirely by JavaScript
+           (see addIngredientRow() below), which is why these inputs use a
+           plain name="..." attribute instead of asp-for — Razor only knows
+           about rows that exist when the page is first rendered on the server;
+           it has no way to "bind" to rows that don't exist yet. *@
         <div class="row mb-2 ingredient-row align-items-center">
             <div class="col-2">
+                @* oninput="validateQuantity(this)" runs a live check on every
+                   keystroke, instantly flagging invalid quantities (letters,
+                   symbols, etc.) before the user even tries to submit. *@
                 <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
+                @* Hidden by default; only shown by JS if this specific box fails validation. *@
                 <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
             </div>
             <div class="col-3">
@@ -79,16 +124,21 @@
                 <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
             </div>
             <div class="col-2">
+                @* Removes just THIS row when clicked — see removeRow() below. *@
                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
             </div>
         </div>
     </div>
+    @* type="button" (not "submit") means clicking this does NOT submit the form —
+       it only runs the JavaScript function named in onclick. *@
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addIngredientRow()">+ Add Ingredient</button>
 
     <hr />
 
     <h4>Steps</h4>
     <div id="step-list">
+        @* Same idea as the ingredient row above — one starting row,
+           more get added dynamically via JavaScript. *@
         <div class="mb-2 step-row d-flex gap-2 align-items-center">
             <input type="text" name="Steps" class="form-control" placeholder="Step 1" />
             <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
@@ -98,28 +148,50 @@
 
     <hr />
 
+    @* This is the REAL save action — explicitly named "Save" so there's no
+       ambiguity with the "SearchPhotos" handler above, even though both
+       buttons live inside the same <form>. Without explicitly naming both,
+       browsers can sometimes submit to the wrong handler. *@
     <button type="submit" asp-page-handler="Save" class="btn btn-success">Save Recipe</button>
     <a asp-page="/Recipes" class="btn btn-outline-secondary">Cancel</a>
 </form>
 
+@* This entire script block gets injected into the page via
+   @await RenderSectionAsync("Scripts", required: false) in _Layout.cshtml,
+   which places it right before the closing </body> tag — ensuring the rest
+   of the page's HTML exists before these scripts try to interact with it. *@
 @section Scripts {
     <script>
+        // Checks a single quantity input box against an allowed pattern:
+        // - completely empty is OK (blank quantity is allowed)
+        // - whole numbers like "3" are OK
+        // - simple fractions like "1/2" are OK
+        // Anything else (letters, symbols, multiple slashes, etc.) fails.
         function validateQuantity(input) {
             const pattern = /^\d*(\/\d+)?$/;
+            // Find this specific input's matching warning text, which sits
+            // right next to it in the HTML (inside the same parent <div>).
             const errorEl = input.parentElement.querySelector(".qty-error");
             const isValid = pattern.test(input.value.trim());
 
             if (!isValid) {
+                // Adds Bootstrap's built-in red-border styling for invalid fields,
+                // and reveals the warning message beneath the box.
                 input.classList.add("is-invalid");
                 errorEl.style.display = "block";
             } else {
+                // Clears the invalid styling/message once the value becomes valid again.
                 input.classList.remove("is-invalid");
                 errorEl.style.display = "none";
             }
             return isValid;
         }
 
+        // Runs when "+ Add Ingredient" is clicked.
         function addIngredientRow() {
+            // Before adding a brand new row, double-check every EXISTING
+            // quantity box is valid first. This stops users from piling up
+            // multiple rows while leaving an invalid value unresolved.
             const allQtyInputs = document.querySelectorAll(".qty-input");
             let allValid = true;
             allQtyInputs.forEach(input => {
@@ -128,13 +200,20 @@
                 }
             });
 
+            // If anything was invalid, stop here — no new row gets added
+            // until the existing problem is fixed (the red warning text
+            // is already visible at this point, telling the user why).
             if (!allValid) {
                 return;
             }
 
+            // Build a brand new ingredient row from scratch and add it
+            // to the bottom of the ingredient list.
             const list = document.getElementById("ingredient-list");
             const row = document.createElement("div");
             row.className = "row mb-2 ingredient-row align-items-center";
+            // innerHTML lets us insert a whole chunk of HTML at once as a
+            // template string, rather than building each element one by one.
             row.innerHTML = `
                 <div class="col-2">
                     <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
@@ -153,8 +232,13 @@
             list.appendChild(row);
         }
 
+        // Runs when "+ Add Step" is clicked. Very similar to addIngredientRow(),
+        // but steps are simpler (just one text box each), so there's no
+        // validation step needed here.
         function addStepRow() {
             const list = document.getElementById("step-list");
+            // Counts how many step rows currently exist so the new row's
+            // placeholder text can say "Step 2", "Step 3", etc. correctly.
             const count = list.querySelectorAll(".step-row").length + 1;
             const row = document.createElement("div");
             row.className = "mb-2 step-row d-flex gap-2 align-items-center";
@@ -165,9 +249,22 @@
             list.appendChild(row);
         }
 
+        // Shared by both ingredient and step "✕ Remove" buttons.
+        // 'button' is the specific button element that was clicked.
+        // 'rowClass' tells this function whether it's removing an
+        // "ingredient-row" or a "step-row" (passed in differently by each button).
         function removeRow(button, rowClass) {
+            // .closest() walks UP from the clicked button through its parent
+            // elements until it finds the nearest one matching this class —
+            // i.e., "find the whole row this button belongs to."
             const row = button.closest("." + rowClass);
             const list = row.parentElement;
+
+            // If there's more than one row of this type, it's safe to fully
+            // remove this one. But if this is the LAST remaining row, we
+            // don't delete it entirely — instead we just clear its inputs.
+            // This keeps the "Ingredients"/"Steps" section from ever
+            // disappearing completely, which would look broken.
             if (list.querySelectorAll("." + rowClass).length > 1) {
                 row.remove();
             } else {
@@ -175,13 +272,24 @@
             }
         }
 
+        // Runs when a Pexels search-result thumbnail is clicked.
+        // 'url' is that photo's full-size image URL.
+        // 'imgElement' is the actual <img> tag that was clicked.
         function selectPhoto(url, imgElement) {
+            // Store the chosen photo's URL into the hidden input so it
+            // gets submitted along with the rest of the form on Save.
             document.getElementById("selectedPhotoUrl").value = url;
+
+            // Reset every thumbnail in the results grid back to its normal,
+            // unselected appearance first...
             document.querySelectorAll(".row img").forEach(img => {
                 img.style.border = "2px solid #ccc";
                 img.style.transform = "scale(1)";
                 img.style.boxShadow = "none";
             });
+
+            // ...then strongly highlight ONLY the one that was just clicked,
+            // so it's clear to the user which photo is currently selected.
             imgElement.style.border = "4px solid #28a745";
             imgElement.style.transform = "scale(1.05)";
             imgElement.style.boxShadow = "0 0 0 4px rgba(40, 167, 69, 0.3)";

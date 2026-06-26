@@ -1,24 +1,45 @@
 @page
 @model ChopNShop.Pages.RecipesModel
 @{
+    // Sets the browser tab title for this page.
     ViewData["Title"] = "Recipes";
 }
 
+@* Top header row: page title on the left, "+ Add Recipe" button on the
+   right. d-flex + justify-content-between pushes them to opposite ends,
+   and align-items-center keeps them vertically lined up with each other. *@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Recipes</h1>
+    @* Plain link to the Add Recipe page — no form needed, just navigation. *@
     <a asp-page="/AddRecipe" class="btn btn-success">+ Add Recipe</a>
 </div>
 
+@* Bootstrap's grid "row" — everything inside it lays out in a row of
+   columns, with each .col-md-4 below taking up 1/3 of the row's width
+   on medium-or-larger screens (so 3 cards appear per row). *@
 <div class="row">
+@* Loops through EVERY recipe currently in RecipeData.Recipes (made
+   available here via Model.Recipes in the code-behind), building one
+   card for each. *@
 @foreach (var recipe in Model.Recipes)
 {
     <div class="col-md-4 mb-4">
+        @* The ENTIRE card is wrapped in one big clickable link — clicking
+           anywhere on the card (image, title, text) navigates to that
+           specific recipe's details page. text-decoration-none and
+           text-dark strip away the link's default blue color/underline,
+           so it just looks like a normal card instead of a link. *@
         <a asp-page="/RecipeDetails" asp-route-id="@recipe.Id" class="text-decoration-none text-dark">
             <div class="card h-100">
+                @* object-fit: cover crops the image neatly to fill this
+                   fixed 200px height without distorting/stretching it,
+                   regardless of the original photo's proportions. *@
                 <img src="@recipe.ImagePath" class="card-img-top" alt="@recipe.Name" style="height: 200px; object-fit: cover;" />
                 <div class="card-body">
                     <h5 class="card-title">@recipe.Name</h5>
                     <p class="card-text text-muted">
+                        @* TimeSpan.Minutes pulls just the minutes portion
+                           out of the recipe's stored PrepTime value. *@
                         Prep time: @recipe.PrepTime.Minutes min | Serves: @recipe.Servings
                     </p>
                 </div>
@@ -28,6 +49,8 @@
 }
 </div>
 
+@* Only shown if the recipe list is completely empty — gives the user a
+   clear next step instead of just showing a blank page. *@
 @if (!Model.Recipes.Any())
 {
     <p class="text-muted">No recipes yet. Click "+ Add Recipe" to create your first one!</p>

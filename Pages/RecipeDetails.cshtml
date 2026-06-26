@@ -1,15 +1,36 @@
+@* {id:int} means this page's URL must include a number, e.g.
+   /RecipeDetails/3, and that number is passed into OnGet(int id)
+   in the code-behind. *@
 @page "{id:int}"
 @model ChopNShop.Pages.RecipeDetailsModel
 @{
+    // If Model.Recipe is null (shouldn't normally happen, since OnGet
+    // redirects away first if nothing is found), fall back to the
+    // plain word "Recipe" instead of crashing while trying to read
+    // a property off of null.
     ViewData["Title"] = Model.Recipe?.Name ?? "Recipe";
 }
 
+@* Wraps the ENTIRE visible page in a null-check. Since OnGet() already
+   redirects away if no matching recipe is found, this should always be
+   true in practice — but it's a safety net preventing a crash if
+   Model.Recipe is ever null when this renders. *@
 @if (Model.Recipe != null)
 {
+    @* Top row: "Back to Recipes" on the left, "Edit"/"Delete" grouped
+       together on the right. d-flex + justify-content-between pushes
+       them to opposite ends of the row automatically. *@
     <div class="mb-4 d-flex justify-content-between">
         <a asp-page="/Recipes" class="btn btn-outline-secondary btn-sm">&larr; Back to Recipes</a>
         <div>
+            @* A plain link — no form, no JavaScript — straight to the
+               Edit Recipe page for THIS specific recipe's Id. *@
             <a asp-page="/EditRecipe" asp-route-id="@Model.Recipe.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+            @* This button does NOT delete anything by itself. It only
+               OPENS the confirmation modal further down the page
+               (data-bs-toggle="modal" targeting #deleteModal). Bootstrap
+               handles all the show/hide animation automatically — no
+               custom JavaScript needed for that part. *@
             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">Delete</button>
         </div>
     </div>
@@ -20,11 +41,16 @@
 
     <div class="d-flex gap-4 mb-4 text-muted">
         <span><strong>Servings:</strong> @Model.Recipe.Servings</span>
+        @* TimeSpan.Minutes pulls out just the minutes portion of the
+           stored PrepTime value for display. *@
         <span><strong>Prep Time:</strong> @Model.Recipe.PrepTime.Minutes minutes</span>
     </div>
 
     <h3>Ingredients</h3>
     <ul class="list-group mb-4">
+    @* Since each Ingredient object already bundles Name, Quantity, and
+       Unit together, a normal foreach works fine here — no need to
+       track matching index positions across separate lists. *@
     @foreach (var ingredient in Model.Recipe.Ingredients)
     {
         <li class="list-group-item">@ingredient.Quantity @ingredient.Unit @ingredient.Name</li>
@@ -32,6 +58,8 @@
     </ul>
 
     <h3>Steps</h3>
+    @* <ol> (ordered list) + Bootstrap's list-group-numbered class
+       together produce the automatic "1. 2. 3." numbering shown on screen. *@
     <ol class="list-group list-group-numbered">
     @foreach (var step in Model.Recipe.Steps)
     {
@@ -39,18 +67,34 @@
     }
     </ol>
 
+    @* =================================================================
+       DELETE CONFIRMATION MODAL (Bootstrap component)
+       This entire block is HIDDEN by default. It only becomes visible
+       when the "Delete" button above triggers it via data-bs-toggle.
+       ================================================================= *@
     <div class="modal fade" id="deleteModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Delete Recipe?</h5>
+                    @* The little "X" close button in the corner — closes
+                       the modal without deleting anything. *@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     Are you sure you want to delete "@Model.Recipe.Name"? This can't be undone.
                 </div>
                 <div class="modal-footer">
+                    @* Closes the modal harmlessly — same as the X button above. *@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    @* This is the ONLY actual delete action on the page.
+                       It's a real <form> that posts specifically to
+                       OnPostDelete in the code-behind (via
+                       asp-page-handler="Delete"), carrying this recipe's
+                       Id along with it (asp-route-id). The user can only
+                       reach this button after already opening the modal
+                       and confirming intent — there's no way to delete
+                       a recipe with a single accidental click. *@
                     <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Recipe.Id">
                         <button type="submit" class="btn btn-danger">Delete</button>
                     </form>
@@ -61,8 +105,22 @@
 }
 @section Scripts {
     <script>
+        // Bootstrap fires this built-in event ('hidden.bs.modal') every
+        // time the delete confirmation modal finishes closing — whether
+        // that's from clicking Cancel, the X button, clicking outside the
+        // modal, or pressing Escape.
+        //
+        // Without this cleanup, Bootstrap can occasionally leave behind an
+        // invisible "backdrop" overlay element after the modal closes,
+        // which can silently block clicks on buttons elsewhere on the page
+        // (this caused the Edit button to stop responding in earlier testing).
         document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function () {
+            // Removes the class Bootstrap adds to <body> while a modal is
+            // open (which normally prevents background scrolling).
             document.body.classList.remove('modal-open');
+            // Directly finds and removes any leftover backdrop element(s),
+            // guaranteeing the page is fully back to normal after the
+            // modal closes.
             document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
         });
     </script>
