@@ -136,7 +136,17 @@
                 <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" value="@Model.IngredientUnits.ElementAtOrDefault(i)" />
             </div>
             <div class="col-5">
-                <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" value="@Model.IngredientNames.ElementAtOrDefault(i)" />
+                @* "ing-name-input" marks this box so the addIngredientRow()
+                   JavaScript function can find and check the MOST RECENT
+                   ingredient name box across both server-rendered rows
+                   (like this one) and rows added dynamically later.
+                   oninput="clearNameWarning(this)" removes the red border
+                   and warning message below as soon as the user starts
+                   typing a name into this box. *@
+                <input type="text" name="IngredientNames" class="form-control ing-name-input" placeholder="Ingredient name" value="@Model.IngredientNames.ElementAtOrDefault(i)" oninput="clearNameWarning(this)" />
+                @* Hidden by default; only shown by JS if "+ Add Ingredient"
+                   is clicked while THIS box is still empty. *@
+                <small class="text-danger name-error" style="display: none;">Please fill out this ingredient's name first</small>
             </div>
             <div class="col-2">
                 @* Same removeRow() JS function as Add Recipe — works
@@ -179,10 +189,11 @@
     <a asp-page="/RecipeDetails" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
 </form>
 
-@* This entire script block is IDENTICAL to the one in AddRecipe.cshtml.
-   It's duplicated here because each Razor Page's scripts are self-contained
-   to that page — there's no automatic sharing between AddRecipe and
-   EditRecipe's script sections without extra setup (like a shared .js file). *@
+@* This entire script block matches AddRecipe.cshtml's version, including
+   the inline ingredient-name warning behavior. It's duplicated here
+   because each Razor Page's scripts are self-contained to that page —
+   there's no automatic sharing between AddRecipe and EditRecipe's script
+   sections without extra setup (like a shared .js file). *@
 @section Scripts {
     <script>
         // Checks one quantity box: blank, a whole number, or a fraction
@@ -202,8 +213,17 @@
             return isValid;
         }
 
+        // Clears the red border + warning message on an ingredient name box
+        // as soon as the user starts typing something into it.
+        function clearNameWarning(input) {
+            input.classList.remove("is-invalid");
+            const errorEl = input.parentElement.querySelector(".name-error");
+            if (errorEl) errorEl.style.display = "none";
+        }
+
         // Adds a brand new, blank ingredient row — but only after confirming
-        // every EXISTING quantity box on the page is currently valid.
+        // every EXISTING quantity box on the page is currently valid, AND
+        // that the most recently added ingredient name box isn't empty.
         function addIngredientRow() {
             const allQtyInputs = document.querySelectorAll(".qty-input");
             let allValid = true;
@@ -215,6 +235,25 @@
 
             if (!allValid) {
                 return;
+            }
+
+            // Grab every ingredient name box currently on the page —
+            // includes both server-rendered rows and rows added earlier by
+            // this same function, since all of them share the
+            // "ing-name-input" class.
+            const nameInputs = document.querySelectorAll(".ing-name-input");
+            if (nameInputs.length > 0) {
+                const lastInput = nameInputs[nameInputs.length - 1];
+                if (lastInput.value.trim() === "") {
+                    // Same visual pattern as quantity validation: highlight
+                    // the box in red and show a small warning right beneath
+                    // it, rather than using a disruptive browser alert() popup.
+                    lastInput.classList.add("is-invalid");
+                    const errorEl = lastInput.parentElement.querySelector(".name-error");
+                    if (errorEl) errorEl.style.display = "block";
+                    lastInput.focus();
+                    return;
+                }
             }
 
             const list = document.getElementById("ingredient-list");
@@ -229,7 +268,8 @@
                     <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
                 </div>
                 <div class="col-5">
-                    <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+                    <input type="text" name="IngredientNames" class="form-control ing-name-input" placeholder="Ingredient name" oninput="clearNameWarning(this)" />
+                    <small class="text-danger name-error" style="display: none;">Please fill out this ingredient's name first</small>
                 </div>
                 <div class="col-2">
                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>

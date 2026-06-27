@@ -29,8 +29,14 @@ public class EditRecipeModel : PageModel
     [BindProperty]
     public int Id { get; set; }
 
+    // Validation for this is handled manually inside OnPostSaveAsync(),
+    // so no [Required] attribute is used here — having both a manual
+    // check AND a [Required] attribute would produce two duplicate
+    // "Recipe name is required" messages on the same submission.
+    // Marked nullable (string?) to match AddRecipeModel's pattern, even
+    // though OnGet() always assigns it a real value before the form is shown.
     [BindProperty]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; } = "";
 
     // Nullable for the same reason as in AddRecipeModel — protects
     // against a blank box failing to bind when, say, just the Search
@@ -148,25 +154,68 @@ public class EditRecipeModel : PageModel
     // rather than creating a brand new recipe like AddRecipe does.
     public async Task<IActionResult> OnPostSaveAsync()
     {
-        // Same required-name check as Add Recipe.
+        // --- VALIDATION STEP 1: Name is required ---
+        // Does NOT immediately "return Page()" here — instead, it just
+        // records the error and lets the method keep running, so every
+        // other validation check below also gets a chance to run on this
+        // same submission. That way, if there were multiple problems at
+        // once, the user sees ALL of them together, not one at a time.
         if (string.IsNullOrWhiteSpace(Name))
         {
             ModelState.AddModelError("Name", "Recipe name is required.");
+        }
+
+        // --- VALIDATION STEP 2: Ingredient quantities must be blank,
+        // a whole number, or a simple fraction like "1/2" ---
+        // Pattern breakdown:
+        //   ^            start of the string
+        //   \d*          zero or more digits (so "" or "3" or "12" all match)
+        //   (/\d+)?      OPTIONALLY a slash followed by one-or-more digits (for fractions)
+        //   $            end of the string
+        var quantityPattern = new Regex(@"^\d*(/\d+)?$");
+
+        // Loop by INDEX (rather than foreach) so each error message can
+        // reference exactly which row it's complaining about.
+        for (int i = 0; i < IngredientQuantities.Count; i++)
+        {
+            var qty = IngredientQuantities[i];
+            // Blank values are intentionally allowed — only flag it if
+            // it's NOT blank AND doesn't match the allowed pattern.
+            if (!string.IsNullOrWhiteSpace(qty) && !quantityPattern.IsMatch(qty.Trim()))
+            {
+                ModelState.AddModelError($"IngredientQuantities[{i}]", "Quantities can only be whole numbers or fractions (e.g. 1/2).");
+            }
+        }
+
+        // --- VALIDATION STEP 3: Flag rows where a quantity or unit was
+        // entered, but the ingredient name itself was left blank ---
+        // Without this check, a row like Quantity="2", Unit="cups", Name=""
+        // would silently get skipped later on (since the ingredient-saving
+        // loop ignores rows with no name), quietly losing data the user
+        // clearly meant to enter.
+        for (int i = 0; i < IngredientNames.Count; i++)
+        {
+            bool hasName = !string.IsNullOrWhiteSpace(IngredientNames[i]);
+            bool hasQuantity = i < IngredientQuantities.Count && !string.IsNullOrWhiteSpace(IngredientQuantities[i]);
+            bool hasUnit = i < IngredientUnits.Count && !string.IsNullOrWhiteSpace(IngredientUnits[i]);
+
+            if (!hasName && (hasQuantity || hasUnit))
+            {
+                ModelState.AddModelError($"IngredientNames[{i}]", $"Ingredient row {i + 1} has a quantity or unit but is missing an ingredient name.");
+            }
+        }
+
+        // Now that all three validation checks above have had a chance to
+        // run (none of them stopped early), check ModelState as a whole.
+        // If anything failed, stop here and re-show the form — correctly
+        // pre-filled with whatever the user already had typed/edited,
+        // thanks to the asp-for bindings and the @for loops in the .cshtml.
+        if (!ModelState.IsValid)
+        {
             return Page();
         }
 
-        // Same quantity-format validation as Add Recipe: blank, whole
-        // numbers, or simple fractions like "1/2" are allowed; anything
-        // else gets rejected.
-        var quantityPattern = new Regex(@"^\d*(/\d+)?$");
-        foreach (var qty in IngredientQuantities)
-        {
-            if (!string.IsNullOrWhiteSpace(qty) && !quantityPattern.IsMatch(qty.Trim()))
-            {
-                ModelState.AddModelError("IngredientQuantities", "Quantities can only be whole numbers or fractions (e.g. 1/2).");
-                return Page();
-            }
-        }
+        // --- Everything below only runs once ALL validation has passed. ---
 
         // KEY DIFFERENCE FROM AddRecipe: instead of starting from a blank
         // string, this starts from whatever photo path the recipe ALREADY
@@ -214,7 +263,10 @@ public class EditRecipeModel : PageModel
         var updatedRecipe = new Recipe
         {
             Id = Id,
-            Name = Name,
+            // The "!" tells the compiler "trust me, this isn't null" —
+            // safe because the validation above already stopped execution
+            // if Name were null/blank.
+            Name = Name!,
             Servings = Servings ?? 0,
             PrepTime = TimeSpan.FromMinutes(PrepMinutes ?? 0),
             Steps = Steps.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(),
@@ -227,12 +279,20 @@ public class EditRecipeModel : PageModel
         // back into proper Ingredient objects.
         for (int i = 0; i < IngredientNames.Count; i++)
         {
+            // Thanks to VALIDATION STEP 3 above, any row reaching this
+            // point with a blank name is also guaranteed to have a blank
+            // quantity and unit — so skipping it here is safe and doesn't
+            // lose any data the user actually intended to enter.
             if (!string.IsNullOrWhiteSpace(IngredientNames[i]))
             {
                 updatedRecipe.Ingredients.Add(new Ingredient
                 {
                     Name = IngredientNames[i],
-                    Quantity = i < IngredientQuantities.Count ? IngredientQuantities[i].Trim() : "",
+                    // "?? """ guards against this specific value ever being
+                    // null (rather than just an empty string) before calling
+                    // .Trim() on it — calling .Trim() directly on null would
+                    // crash with a NullReferenceException.
+                    Quantity = i < IngredientQuantities.Count ? (IngredientQuantities[i] ?? "").Trim() : "",
                     Unit = i < IngredientUnits.Count ? IngredientUnits[i] : ""
                 });
             }

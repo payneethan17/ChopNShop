@@ -10,7 +10,7 @@
 @* ===================================================================
    ERROR SUMMARY BOX
    This block only shows up if something went wrong during a form submit
-   (e.g. missing name, bad ingredient quantity, bad photo file type).
+   (e.g. missing name, bad ingredient quantity, missing ingredient name).
    ModelState is automatically filled in by ASP.NET whenever a
    ModelState.AddModelError(...) call happens in the code-behind.
    =================================================================== *@
@@ -102,32 +102,61 @@
     @* This wrapping div has an id so JavaScript can find it later and
        append new ingredient rows to it dynamically. *@
     <div id="ingredient-list">
-        @* This is the ONE starting ingredient row that's always present.
-           Extra rows beyond this one are created entirely by JavaScript
-           (see addIngredientRow() below), which is why these inputs use a
-           plain name="..." attribute instead of asp-for — Razor only knows
-           about rows that exist when the page is first rendered on the server;
-           it has no way to "bind" to rows that don't exist yet. *@
-        <div class="row mb-2 ingredient-row align-items-center">
-            <div class="col-2">
-                @* oninput="validateQuantity(this)" runs a live check on every
-                   keystroke, instantly flagging invalid quantities (letters,
-                   symbols, etc.) before the user even tries to submit. *@
-                <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" />
-                @* Hidden by default; only shown by JS if this specific box fails validation. *@
-                <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
+        @{
+            // Decide how many ingredient rows to render on THIS page load:
+            // - If IngredientNames already has entries (meaning the page is
+            //   reloading after a failed Save attempt), show exactly that
+            //   many rows, so nothing the user typed gets lost.
+            // - Otherwise (a completely fresh visit to Add Recipe), show
+            //   just one blank starting row.
+            int initialIngCount = Model.IngredientNames.Any() ? Model.IngredientNames.Count : 1;
+        }
+        @for (int i = 0; i < initialIngCount; i++)
+        {
+            // Safely pull out whatever this row's values were on the
+            // previous submission (if any), so they can be re-displayed
+            // below via value="...". Falls back to "" if, for any reason,
+            // one of the three lists is shorter than the others.
+            string currentQty = i < Model.IngredientQuantities.Count ? Model.IngredientQuantities[i] : "";
+            string currentUnit = i < Model.IngredientUnits.Count ? Model.IngredientUnits[i] : "";
+            string currentName = i < Model.IngredientNames.Count ? Model.IngredientNames[i] : "";
+
+            @* Each loop iteration renders ONE ingredient row, pre-filled
+               with that row's previous values (if this is a reload after
+               a failed submit) or blank (on a fresh page load). Extra rows
+               added later by clicking "+ Add Ingredient" are built purely
+               in JavaScript and use plain name="..." attributes too, since
+               Razor only knows about rows that exist at the moment the
+               page is rendered on the server. *@
+            <div class="row mb-2 ingredient-row align-items-center">
+                <div class="col-2">
+                    @* oninput="validateQuantity(this)" runs a live check on
+                       every keystroke, instantly flagging invalid quantities
+                       (letters, symbols, etc.) before the user even tries to submit.
+                       value="@currentQty" re-displays this row's previous quantity,
+                       if there was one, instead of always starting blank. *@
+                    <input type="text" name="IngredientQuantities" class="form-control qty-input" placeholder="Qty (e.g. 1/2)" inputmode="numeric" oninput="validateQuantity(this)" value="@currentQty" />
+                    @* Hidden by default; only shown by JS if this specific box fails validation. *@
+                    <small class="text-danger qty-error" style="display: none;">Numbers or fractions only (e.g. 1/2)</small>
+                </div>
+                <div class="col-3">
+                    <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" value="@currentUnit" />
+                </div>
+                <div class="col-5">
+                    @* "ing-name-input" is a marker class used by the
+                       addIngredientRow() JavaScript function below to find
+                       and check the MOST RECENT ingredient name box across
+                       both server-rendered rows (like this one) and rows
+                       added dynamically later. *@
+                    <input type="text" name="IngredientNames" class="form-control ing-name-input" placeholder="Ingredient name" value="@currentName" oninput="clearNameWarning(this)" />
+                    <small class="text-danger name-error" style="display: none;">Please fill out this ingredient's name first</small>
+                </div>
+                <div class="col-2">
+                    @* Removes just THIS row when clicked — see removeRow() below. *@
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
+                </div>
             </div>
-            <div class="col-3">
-                <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
-            </div>
-            <div class="col-5">
-                <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
-            </div>
-            <div class="col-2">
-                @* Removes just THIS row when clicked — see removeRow() below. *@
-                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>
-            </div>
-        </div>
+        }
     </div>
     @* type="button" (not "submit") means clicking this does NOT submit the form —
        it only runs the JavaScript function named in onclick. *@
@@ -137,12 +166,28 @@
 
     <h4>Steps</h4>
     <div id="step-list">
-        @* Same idea as the ingredient row above — one starting row,
-           more get added dynamically via JavaScript. *@
-        <div class="mb-2 step-row d-flex gap-2 align-items-center">
-            <input type="text" name="Steps" class="form-control" placeholder="Step 1" />
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
-        </div>
+        @{
+            // Same "preserve on reload, otherwise start with one blank row"
+            // logic as the ingredients section above.
+            int initialStepCount = Model.Steps.Any() ? Model.Steps.Count : 1;
+        }
+        @for (int i = 0; i < initialStepCount; i++)
+        {
+            // Safely grab this row's previous value, falling back to "" if
+            // there isn't one yet (e.g. on a fresh page load).
+            string currentStep = i < Model.Steps.Count ? Model.Steps[i] : "";
+
+            @* Same idea as the ingredient rows above — one row per
+               existing step, pre-filled, with more added dynamically
+               via JavaScript. value="@currentStep" is what actually
+               makes previously typed steps survive a failed submit;
+               "Step @(i + 1)" keeps the placeholder numbering correct
+               for every row, not just the first one. *@
+            <div class="mb-2 step-row d-flex gap-2 align-items-center">
+                <input type="text" name="Steps" class="form-control" placeholder="Step @(i + 1)" value="@currentStep" />
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'step-row')">✕ Remove</button>
+            </div>
+        }
     </div>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addStepRow()">+ Add Step</button>
 
@@ -187,6 +232,14 @@
             return isValid;
         }
 
+        // Clears the red border + warning message on an ingredient name box
+        // as soon as the user starts typing something into it.
+        function clearNameWarning(input) {
+            input.classList.remove("is-invalid");
+            const errorEl = input.parentElement.querySelector(".name-error");
+            if (errorEl) errorEl.style.display = "none";
+        }
+
         // Runs when "+ Add Ingredient" is clicked.
         function addIngredientRow() {
             // Before adding a brand new row, double-check every EXISTING
@@ -207,6 +260,26 @@
                 return;
             }
 
+            // Grab every ingredient name box currently on the page — this
+            // includes BOTH server-rendered rows and rows added earlier by
+            // this same function, since all of them share the
+            // "ing-name-input" class.
+            const nameInputs = document.querySelectorAll(".ing-name-input");
+
+            if (nameInputs.length > 0) {
+                const lastInput = nameInputs[nameInputs.length - 1];
+                if (lastInput.value.trim() === "") {
+                // Same visual pattern as the quantity validation: highlight the
+                // box in red and show a small warning message right beneath it,
+                // instead of using a disruptive browser alert() popup.
+                    lastInput.classList.add("is-invalid");
+                    const errorEl = lastInput.parentElement.querySelector(".name-error");
+                    if (errorEl) errorEl.style.display = "block";
+                    lastInput.focus();
+                    return;
+                }
+            }
+
             // Build a brand new ingredient row from scratch and add it
             // to the bottom of the ingredient list.
             const list = document.getElementById("ingredient-list");
@@ -223,7 +296,8 @@
                     <input type="text" name="IngredientUnits" class="form-control" placeholder="Unit (cup, lb...)" />
                 </div>
                 <div class="col-5">
-                    <input type="text" name="IngredientNames" class="form-control" placeholder="Ingredient name" />
+                    <input type="text" name="IngredientNames" class="form-control ing-name-input" placeholder="Ingredient name" oninput="clearNameWarning(this)" />
+                    <small class="text-danger name-error" style="display: none;">Please fill out this ingredient's name first</small>
                 </div>
                 <div class="col-2">
                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRow(this, 'ingredient-row')">✕ Remove</button>

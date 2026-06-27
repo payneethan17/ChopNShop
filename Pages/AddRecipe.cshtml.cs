@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 // Gives access to Regex, used here to validate ingredient quantity formatting.
 using System.Text.RegularExpressions;
 
+
 namespace ChopNShop.Pages;
 
 // The code-behind class for AddRecipe.cshtml. Everything in here runs on
@@ -39,9 +40,14 @@ public class AddRecipeModel : PageModel
     // ----------------------------------------------------------------
 
     // Holds the recipe's name as typed into the Name text box.
-    // Defaults to "" so it's never null before the form is submitted.
+    // [Required] is a built-in validation attribute — ASP.NET will
+    // automatically flag this field as invalid if it's null/empty, using
+    // the given ErrorMessage. This acts as a backup safety net alongside
+    // the manual check inside OnPostSaveAsync() below.
+    // Marked as string? (nullable) since [Required] technically allows
+    // the value to arrive as null before validation catches it.
     [BindProperty]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; } = "";
 
     // Nullable (int?) on purpose: if the Servings box is left blank when
     // ANY form on this page is submitted (including just clicking "Search"),
@@ -132,15 +138,15 @@ public class AddRecipeModel : PageModel
     public async Task<IActionResult> OnPostSaveAsync()
     {
         // --- VALIDATION STEP 1: Name is required ---
+        // Note: this does NOT immediately "return Page()" here. Instead,
+        // it just records the error and lets the method keep running, so
+        // that every other validation check below also gets a chance to
+        // run on this same submission. That way, if the user made several
+        // mistakes at once, they see ALL the errors together in one go,
+        // rather than fixing one, resubmitting, and discovering the next one.
         if (string.IsNullOrWhiteSpace(Name))
         {
-            // Attaches an error message tied to the "Name" field. The
-            // .cshtml's error summary box will display this text.
             ModelState.AddModelError("Name", "Recipe name is required.");
-            // Stops here and re-shows the form (with whatever the user
-            // already typed still filled in, thanks to asp-for bindings)
-            // instead of continuing on to save anything.
-            return Page();
         }
 
         // --- VALIDATION STEP 2: Ingredient quantities must be blank,
@@ -152,18 +158,54 @@ public class AddRecipeModel : PageModel
         //   $            end of the string
         var quantityPattern = new Regex(@"^\d*(/\d+)?$");
 
-        // Check every quantity the user entered, across every ingredient row.
-        foreach (var qty in IngredientQuantities)
+        // Loop by INDEX (rather than foreach) so each error message can
+        // reference exactly which row it's complaining about, and so the
+        // ModelState key can be tied to that specific row (e.g.
+        // "IngredientQuantities[2]") for more precise tracking.
+        for (int i = 0; i < IngredientQuantities.Count; i++)
         {
+            var qty = IngredientQuantities[i];
             // Only flag it as a problem if it's NOT blank AND doesn't match
             // the allowed pattern — blank values are intentionally allowed
             // (per the requirement that quantity can be left empty).
             if (!string.IsNullOrWhiteSpace(qty) && !quantityPattern.IsMatch(qty.Trim()))
             {
-                ModelState.AddModelError("IngredientQuantities", "Quantities can only be whole numbers or fractions (e.g. 1/2).");
-                return Page();
+                ModelState.AddModelError($"IngredientQuantities[{i}]", "Quantities can only be whole numbers or fractions (e.g. 1/2).");
             }
         }
+
+        // --- VALIDATION STEP 3: Flag rows where a quantity or unit was
+        // entered, but the ingredient name itself was left blank ---
+        // This catches a row like: Quantity="2", Unit="cups", Name="" —
+        // which would otherwise silently get skipped entirely later on
+        // (since the ingredient-saving loop ignores rows with no name),
+        // quietly losing data the user clearly meant to enter.
+        for (int i = 0; i < IngredientNames.Count; i++)
+        {
+            bool hasName = !string.IsNullOrWhiteSpace(IngredientNames[i]);
+            bool hasQuantity = i < IngredientQuantities.Count && !string.IsNullOrWhiteSpace(IngredientQuantities[i]);
+            bool hasUnit = i < IngredientUnits.Count && !string.IsNullOrWhiteSpace(IngredientUnits[i]);
+
+            // If a quantity or unit exists, but no name was given, this row
+            // is incomplete — flag it specifically rather than just dropping it.
+            if (!hasName && (hasQuantity || hasUnit))
+            {
+                ModelState.AddModelError($"IngredientNames[{i}]", $"Ingredient row {i + 1} has a quantity or unit but is missing an ingredient name.");
+            }
+        }
+
+        // Now that ALL THREE validation checks above have had a chance to
+        // run (none of them stopped early), check ModelState as a whole.
+        // If ANY of them added an error, stop here and re-show the form —
+        // now correctly pre-filled with everything the user already typed,
+        // thanks to the matching changes made in AddRecipe.cshtml.
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
+
+        // --- Everything below this point only runs once ALL validation
+        // checks above have passed. ---
 
         // Will end up holding wherever this recipe's photo actually lives —
         // either a Pexels URL, or a path to a file saved in wwwroot/images.
@@ -222,7 +264,10 @@ public class AddRecipeModel : PageModel
         {
             // Hands out a fresh, never-used-before Id from RecipeData.
             Id = RecipeData.GetNextId(),
-            Name = Name,
+            // The "!" here tells the compiler "trust me, this isn't null" —
+            // safe to use because if Name WERE null/blank, the validation
+            // above would have already stopped execution before reaching this line.
+            Name = Name!,
             // "?? 0" means: if Servings ended up null (left blank), use 0 instead.
             Servings = Servings ?? 0,
             // Converts the entered number of minutes into a proper TimeSpan,
@@ -243,8 +288,11 @@ public class AddRecipeModel : PageModel
         // since they all share the same position/order.
         for (int i = 0; i < IngredientNames.Count; i++)
         {
-            // Skip this row entirely if no ingredient name was typed —
-            // treats it as an empty/unused row rather than saving a blank ingredient.
+            // Skip this row entirely if no ingredient name was typed.
+            // Thanks to VALIDATION STEP 3 above, we already know that any
+            // row reaching this point with a blank name also has a blank
+            // quantity AND unit — so it's genuinely just an unused row,
+            // safe to skip without losing any data the user intended to enter.
             if (!string.IsNullOrWhiteSpace(IngredientNames[i]))
             {
                 recipe.Ingredients.Add(new Ingredient
