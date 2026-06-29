@@ -103,7 +103,7 @@ public class EditRecipeModel : PageModel
         // TimeSpan doesn't store "PrepMinutes" directly — this converts
         // the stored TimeSpan back into a plain number of minutes for
         // display in the Prep Time text box.
-        PrepMinutes = (int)recipe.PrepTime.TotalMinutes;
+        PrepMinutes = recipe.PrepTime.HasValue ? (int)recipe.PrepTime.Value.TotalMinutes : null;
         // If the recipe has actual steps, copy them as-is. If it somehow
         // has ZERO steps (e.g. a very bare-bones recipe), fall back to a
         // list containing one empty string — this guarantees the .cshtml's
@@ -267,8 +267,8 @@ public class EditRecipeModel : PageModel
             // safe because the validation above already stopped execution
             // if Name were null/blank.
             Name = Name!,
-            Servings = Servings ?? 0,
-            PrepTime = TimeSpan.FromMinutes(PrepMinutes ?? 0),
+            Servings = Servings,
+            PrepTime = PrepMinutes.HasValue ? TimeSpan.FromMinutes(PrepMinutes.Value) : null,
             Steps = Steps.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(),
             ImagePath = imagePath,
             Ingredients = new List<Ingredient>()

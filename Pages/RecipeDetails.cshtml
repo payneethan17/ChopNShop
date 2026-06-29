@@ -37,13 +37,11 @@
 
     <h1>@Model.Recipe.Name</h1>
 
-    <img src="@Model.Recipe.ImagePath" class="img-fluid mb-3" style="max-height: 400px; width: 100%; object-fit: cover;" alt="@Model.Recipe.Name" />
+    <img src="@(string.IsNullOrWhiteSpace(Model.Recipe.ImagePath) ? "/images/default-recipe.jpg" : Model.Recipe.ImagePath)" class="img-fluid mb-3" style="max-height: 400px; width: 100%; object-fit: cover;" alt="@Model.Recipe.Name" />
 
     <div class="d-flex gap-4 mb-4 text-muted">
-        <span><strong>Servings:</strong> @Model.Recipe.Servings</span>
-        @* TimeSpan.Minutes pulls out just the minutes portion of the
-           stored PrepTime value for display. *@
-        <span><strong>Prep Time:</strong> @Model.Recipe.PrepTime.Minutes minutes</span>
+        <span><strong>Servings:</strong> @Model.Recipe.ServingsDisplay</span>
+        <span><strong>Prep Time:</strong> @Model.Recipe.PrepTimeDisplay</span>
     </div>
 
     <h3>Ingredients</h3>

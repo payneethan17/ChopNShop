@@ -268,11 +268,10 @@ public class AddRecipeModel : PageModel
             // safe to use because if Name WERE null/blank, the validation
             // above would have already stopped execution before reaching this line.
             Name = Name!,
-            // "?? 0" means: if Servings ended up null (left blank), use 0 instead.
-            Servings = Servings ?? 0,
+            Servings = Servings,
             // Converts the entered number of minutes into a proper TimeSpan,
-            // again defaulting to 0 minutes if PrepMinutes was left blank.
-            PrepTime = TimeSpan.FromMinutes(PrepMinutes ?? 0),
+            // defaulting to null if PrepMinutes was left blank.
+            PrepTime = PrepMinutes.HasValue ? TimeSpan.FromMinutes(PrepMinutes.Value) : null,
             // Filters OUT any completely blank step entries (e.g. if the user
             // added an extra step row but never typed anything into it)
             // before storing the final list.
@@ -302,7 +301,7 @@ public class AddRecipeModel : PageModel
                     // but only if that list actually has an entry at this
                     // position (guards against the three lists ever ending
                     // up different lengths). Falls back to "" otherwise.
-                    Quantity = i < IngredientQuantities.Count ? IngredientQuantities[i].Trim() : "",
+                    Quantity = i < IngredientQuantities.Count ? (IngredientQuantities[i] ?? "").Trim() : "",
                     Unit = i < IngredientUnits.Count ? IngredientUnits[i] : ""
                 });
             }

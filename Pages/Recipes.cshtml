@@ -33,14 +33,15 @@
             <div class="card h-100">
                 @* object-fit: cover crops the image neatly to fill this
                    fixed 200px height without distorting/stretching it,
-                   regardless of the original photo's proportions. *@
-                <img src="@recipe.ImagePath" class="card-img-top" alt="@recipe.Name" style="height: 200px; object-fit: cover;" />
+                   regardless of the original photo's proportions. 
+                   If this recipe has no photo saved, fall back to a default placeholder image instead of showing a broken image icon. *@
+                <img src="@(string.IsNullOrWhiteSpace(recipe.ImagePath) ? "/images/default-recipe.jpg" : recipe.ImagePath)" class="card-img-top" alt="@recipe.Name" style="height: 200px; object-fit: cover;" />
                 <div class="card-body">
                     <h5 class="card-title">@recipe.Name</h5>
                     <p class="card-text text-muted">
                         @* TimeSpan.Minutes pulls just the minutes portion
                            out of the recipe's stored PrepTime value. *@
-                        Prep time: @recipe.PrepTime.Minutes min | Serves: @recipe.Servings
+                        Prep time: @recipe.PrepTimeDisplay | Serves: @recipe.ServingsDisplay
                     </p>
                 </div>
             </div>
