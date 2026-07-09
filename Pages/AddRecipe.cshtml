@@ -91,8 +91,13 @@
             <input type="number" asp-for="Servings" class="form-control" min="1" />
         </div>
         <div class="col">
-            <label class="form-label">Prep Time (minutes)</label>
-            <input type="number" asp-for="PrepMinutes" class="form-control" min="0" />
+            <label class="form-label">Prep Time</label>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="number" asp-for="PrepHours" class="form-control" min="0" placeholder="Hours" />
+                <span>hr</span>
+                <input type="number" asp-for="PrepMinutes" class="form-control" min="0" placeholder="Minutes" />
+                <span>min</span>
+            </div>
         </div>
     </div>
 

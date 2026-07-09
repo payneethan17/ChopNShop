@@ -48,6 +48,9 @@ public class EditRecipeModel : PageModel
     public int? PrepMinutes { get; set; }
 
     [BindProperty]
+    public int? PrepHours { get; set; }
+
+    [BindProperty]
     public List<string> Steps { get; set; } = new();
 
     [BindProperty]
@@ -100,10 +103,20 @@ public class EditRecipeModel : PageModel
         Id = recipe.Id;
         Name = recipe.Name;
         Servings = recipe.Servings;
-        // TimeSpan doesn't store "PrepMinutes" directly — this converts
-        // the stored TimeSpan back into a plain number of minutes for
-        // display in the Prep Time text box.
-        PrepMinutes = recipe.PrepTime.HasValue ? (int)recipe.PrepTime.Value.TotalMinutes : null;
+        // Splits the recipe's saved PrepTime back into separate Hours and
+        // Minutes values, so the Edit form's two boxes each show the correct
+        // piece — e.g. a saved PrepTime of 90 minutes shows as Hours=1, Minutes=30,
+        // rather than Hours=0, Minutes=90.
+        if (recipe.PrepTime.HasValue)
+        {
+            PrepHours = recipe.PrepTime.Value.Hours;
+            PrepMinutes = recipe.PrepTime.Value.Minutes;
+        }
+        else
+        {
+            PrepHours = null;
+            PrepMinutes = null;
+        }
         // If the recipe has actual steps, copy them as-is. If it somehow
         // has ZERO steps (e.g. a very bare-bones recipe), fall back to a
         // list containing one empty string — this guarantees the .cshtml's
@@ -268,7 +281,7 @@ public class EditRecipeModel : PageModel
             // if Name were null/blank.
             Name = Name!,
             Servings = Servings,
-            PrepTime = PrepMinutes.HasValue ? TimeSpan.FromMinutes(PrepMinutes.Value) : null,
+            PrepTime = (PrepHours.HasValue || PrepMinutes.HasValue) ? TimeSpan.FromHours(PrepHours ?? 0) + TimeSpan.FromMinutes(PrepMinutes ?? 0) : null,
             Steps = Steps.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(),
             ImagePath = imagePath,
             Ingredients = new List<Ingredient>()

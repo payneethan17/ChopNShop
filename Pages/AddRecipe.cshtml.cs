@@ -60,6 +60,12 @@ public class AddRecipeModel : PageModel
     [BindProperty]
     public int? PrepMinutes { get; set; }
 
+    //holds whatever the user typed into the Hours box. Nullable for
+    // the same reason as every other numeric field on this form — an empty
+    // box should bind safely as null
+    [BindProperty]
+    public int? PrepHours { get; set; }
+
     // Holds every step the user typed in. Because multiple <input name="Steps">
     // boxes exist on the page (one per step row, including dynamically added
     // ones), ASP.NET automatically collects all of their values, in order,
@@ -269,9 +275,9 @@ public class AddRecipeModel : PageModel
             // above would have already stopped execution before reaching this line.
             Name = Name!,
             Servings = Servings,
-            // Converts the entered number of minutes into a proper TimeSpan,
-            // defaulting to null if PrepMinutes was left blank.
-            PrepTime = PrepMinutes.HasValue ? TimeSpan.FromMinutes(PrepMinutes.Value) : null,
+            // Converts the entered number of hours andminutes into a proper TimeSpan,
+            // defaulting to null if PrepHours or PrepMinutes was left blank.
+            PrepTime = (PrepHours.HasValue || PrepMinutes.HasValue) ? TimeSpan.FromHours(PrepHours ?? 0) + TimeSpan.FromMinutes(PrepMinutes ?? 0) : null,
             // Filters OUT any completely blank step entries (e.g. if the user
             // added an extra step row but never typed anything into it)
             // before storing the final list.
